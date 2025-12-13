@@ -61,6 +61,9 @@ vercel --prod
 
 ```
 
+## License
+MIT
+
 # Roadmap
 
 - Better chat-to-note UX (select text → save)
