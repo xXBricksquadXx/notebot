@@ -1,11 +1,19 @@
-// app.js (FULL amended)
+// app.js
 document.addEventListener('DOMContentLoaded', () => {
-  // If you want CodePen to hit your deployed serverless function, set this.
-  // Keep your Vercel domain here (or replace with your own).
+  // If you want CodePen (or file://) to hit your deployed serverless function, set this.
   const DEPLOYED_CHAT_ENDPOINT = 'https://notebot-ten.vercel.app/api/chat';
-  const API_CHAT_ENDPOINT = location.hostname.includes('codepen')
-    ? DEPLOYED_CHAT_ENDPOINT
-    : '/api/chat';
+
+  const isCodePen =
+    /(^|\.)codepen\.io$/i.test(location.hostname) ||
+    /(^|\.)cdpn\.io$/i.test(location.hostname) ||
+    location.hostname.toLowerCase().includes('codepen');
+
+  // If you open index.html directly (file://), treat it like "no local serverless available"
+  const isFile = location.protocol === 'file:';
+
+  // Use deployed endpoint for CodePen/file://, otherwise same-origin /api/chat
+  const API_CHAT_ENDPOINT =
+    isCodePen || isFile ? DEPLOYED_CHAT_ENDPOINT : '/api/chat';
 
   // ---------- State ----------
   const state = {
@@ -147,9 +155,16 @@ This is a clean demo build.
     saveStorage();
   }
 
+  function syncControls() {
+    if (els.aiModeSelect) els.aiModeSelect.value = state.settings.aiMode;
+    if (els.darkToggle)
+      els.darkToggle.checked = state.settings.theme === 'dark';
+  }
+
   // ---------- Views ----------
   function showView(view) {
     state.view = view;
+
     els.notesView.classList.add('hidden');
     els.archivedView.classList.add('hidden');
     els.chatbotView.classList.add('hidden');
@@ -166,13 +181,10 @@ This is a clean demo build.
       it.classList.toggle('text-white', active);
     });
 
-    // keep selects/toggles in sync regardless of view
-    if (els.aiModeSelect) els.aiModeSelect.value = state.settings.aiMode;
-    if (els.darkToggle)
-      els.darkToggle.checked = state.settings.theme === 'dark';
+    syncControls();
 
     if (view === 'notes') {
-      renderNotesList();
+      renderNotesList(els.notesSearch?.value || '');
       if (!state.currentNoteId && state.notes.length)
         selectNote(state.notes[0].id);
       if (!state.currentNoteId && state.notes.length === 0) createNote();
@@ -195,7 +207,7 @@ This is a clean demo build.
     state.notes.unshift(n);
     state.currentNoteId = n.id;
     saveStorage();
-    renderNotesList();
+    renderNotesList(els.notesSearch.value);
     selectNote(n.id);
     showToast('New note created', 'success');
   }
@@ -304,10 +316,12 @@ This is a clean demo build.
   function togglePin() {
     const n = state.notes.find((x) => x.id === state.currentNoteId);
     if (!n) return showToast('No note selected', 'error');
-    updateCurrentNote({ pinned: !n.pinned });
+
+    const next = !n.pinned;
+    updateCurrentNote({ pinned: next });
     renderNotesList(els.notesSearch.value);
     selectNote(n.id);
-    showToast(n.pinned ? 'Unpinned' : 'Pinned', 'info');
+    showToast(next ? 'Pinned' : 'Unpinned', 'info');
   }
 
   function confirmModal(title, message, action) {
@@ -551,29 +565,49 @@ This is a clean demo build.
     return 'Simulated response: switch to Serverless mode in GitHub/Vercel to use real models.';
   }
 
+  async function readJsonOrText(res) {
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('application/json')) {
+      return await res.json().catch(() => ({}));
+    }
+    const text = await res.text().catch(() => '');
+    return { _text: text };
+  }
+
   async function callServerlessChat(messages) {
-    // Always send only what the API needs (role/content) to avoid schema issues.
+    // Always send only what the API needs (role/content)
     const clean = (messages || []).map((m) => ({
       role: m.role,
       content: m.content,
     }));
 
-    const res = await fetch(API_CHAT_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: clean }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
 
-    const data = await res.json().catch(() => ({}));
+    try {
+      const res = await fetch(API_CHAT_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: clean }),
+        signal: controller.signal,
+      });
 
-    if (!res.ok) {
-      // show upstream error body if your api returns it
-      const msg = data.error || data.message || `HTTP ${res.status}`;
-      throw new Error(msg);
+      const data = await readJsonOrText(res);
+
+      if (!res.ok) {
+        const msg =
+          data?.error || data?.message || data?._text || `HTTP ${res.status}`;
+        throw new Error(msg);
+      }
+
+      if (!data || !data.content) throw new Error('Bad response');
+      return data.content;
+    } catch (e) {
+      if (e?.name === 'AbortError') throw new Error('Request timed out');
+      throw e;
+    } finally {
+      clearTimeout(timeout);
     }
-
-    if (!data || !data.content) throw new Error('Bad response');
-    return data.content;
   }
 
   // ---------- Events ----------
@@ -683,7 +717,6 @@ This is a clean demo build.
   // ---------- Init ----------
   loadStorage();
   applyTheme(state.settings.theme);
-  if (els.aiModeSelect) els.aiModeSelect.value = state.settings.aiMode;
-  if (els.darkToggle) els.darkToggle.checked = state.settings.theme === 'dark';
+  syncControls();
   showView('notes');
 });
