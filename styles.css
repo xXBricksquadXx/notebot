@@ -126,6 +126,24 @@ body{
 .toast.error{ background:var(--error-color); color:#fff; }
 .toast.info{ background:var(--primary-color); color:var(--text-color); }
 
+/* Flex overflow fix: allow inner panes to scroll (chat + preview) */
+html, body { height: 100%; }
+
+#content,
+#notes-view,
+#archived-view,
+#chatbot-view,
+#settings-view,
+#note-editor,
+#note-preview,
+#chat-history {
+  min-height: 0;
+}
+
+/* Tailwind CDN v2 won’t honor max-w-[80%] (arbitrary values). */
+.message-bubble { max-width: 80%; }
+
+
 /* Switch */
 .switch{ position:relative; display:inline-block; width:48px; height:24px; }
 .switch input{ opacity:0; width:0; height:0; }

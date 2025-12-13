@@ -1,12 +1,13 @@
-// app.js
+// app.js (FULL amended + scroll fix)
 document.addEventListener('DOMContentLoaded', () => {
-  // CodePen Serverless Function.
+  // If you want CodePen to hit your deployed serverless function, set this.
   const DEPLOYED_CHAT_ENDPOINT = 'https://notebot-ten.vercel.app/api/chat';
-  const IS_CODEPEN =
-    /(^|\.)codepen\.io$|(^|\.)cdpn\.io$/.test(location.hostname) ||
-    location.hostname.includes('codepen');
 
-  const API_CHAT_ENDPOINT = IS_CODEPEN ? DEPLOYED_CHAT_ENDPOINT : '/api/chat';
+  const isCodepen =
+    /(^|\.)codepen\.io$/.test(location.hostname) ||
+    /(^|\.)cdpn\.io$/.test(location.hostname);
+
+  const API_CHAT_ENDPOINT = isCodepen ? DEPLOYED_CHAT_ENDPOINT : '/api/chat';
 
   // ---------- State ----------
   const state = {
@@ -58,6 +59,10 @@ document.addEventListener('DOMContentLoaded', () => {
     chatSend: $('send-chat-btn'),
     typing: $('chatbot-typing-indicator'),
     promptBtns: document.querySelectorAll('.prompt-template-btn'),
+
+    // OPTIONAL: if you add a button in HTML like:
+    // <button id="save-chat-btn" class="btn-neo ...">Save Chat</button>
+    saveChatBtn: $('save-chat-btn'),
 
     darkToggle: $('dark-mode-toggle'),
 
@@ -148,10 +153,20 @@ This is a clean demo build.
     saveStorage();
   }
 
+  // ---------- Scroll helpers (fix “new messages not visible”) ----------
+  function scrollChatToBottom(behavior = 'auto') {
+    if (!els.chatHistory) return;
+    requestAnimationFrame(() => {
+      els.chatHistory.scrollTo({
+        top: els.chatHistory.scrollHeight,
+        behavior,
+      });
+    });
+  }
+
   // ---------- Views ----------
   function showView(view) {
     state.view = view;
-
     els.notesView.classList.add('hidden');
     els.archivedView.classList.add('hidden');
     els.chatbotView.classList.add('hidden');
@@ -168,7 +183,6 @@ This is a clean demo build.
       it.classList.toggle('text-white', active);
     });
 
-    // keep selects/toggles in sync regardless of view
     if (els.aiModeSelect) els.aiModeSelect.value = state.settings.aiMode;
     if (els.darkToggle)
       els.darkToggle.checked = state.settings.theme === 'dark';
@@ -181,12 +195,30 @@ This is a clean demo build.
     }
     if (view === 'archived') renderArchivedList();
     if (view === 'chatbot') {
-      ensureChatToolbar();
-      renderChat({ forceScroll: true });
+      renderChat();
+      scrollChatToBottom();
     }
   }
 
   // ---------- Notes ----------
+  function createNote() {
+    const n = {
+      id: uid(),
+      title: 'New Note',
+      content: '',
+      tags: [],
+      pinned: false,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    state.notes.unshift(n);
+    state.currentNoteId = n.id;
+    saveStorage();
+    renderNotesList();
+    selectNote(n.id);
+    showToast('New note created', 'success');
+  }
+
   function createNoteWithContent(title, content, tags = []) {
     const n = {
       id: uid(),
@@ -200,15 +232,9 @@ This is a clean demo build.
     state.notes.unshift(n);
     state.currentNoteId = n.id;
     saveStorage();
-    renderNotesList(els.notesSearch.value);
+    renderNotesList();
     selectNote(n.id);
-    return n;
-  }
-
-  function createNote() {
-    const n = createNoteWithContent('New Note', '', []);
-    showToast('New note created', 'success');
-    return n;
+    showToast('Saved to Notes', 'success');
   }
 
   function selectNote(id) {
@@ -476,57 +502,11 @@ This is a clean demo build.
     els.chatInput.focus();
     autoResize(els.chatInput);
     showToast('Copied note to chatbot', 'info');
+    scrollChatToBottom();
   }
 
   // ---------- Chat ----------
-  function ensureChatToolbar() {
-    // Adds "Save Chat" button next to "New Session" if missing
-    const existing = document.getElementById('chatbot-save-session-btn');
-    if (existing || !els.chatNewBtn) return;
-
-    const btn = document.createElement('button');
-    btn.id = 'chatbot-save-session-btn';
-    btn.className = 'btn-neo bg-accent text-background ml-2';
-    btn.innerHTML = `<i class="fas fa-save mr-1"></i> Save Chat`;
-    btn.addEventListener('click', saveFullChatToNote);
-
-    els.chatNewBtn.parentElement.insertBefore(btn, els.chatNewBtn.nextSibling);
-  }
-
-  function isNearBottom(el, threshold = 80) {
-    if (!el) return true;
-    return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
-  }
-
-  function scrollToBottom() {
-    if (!els.chatHistory) return;
-    els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
-  }
-
-  function saveFullChatToNote() {
-    if (!state.chat.length) return showToast('No chat to save', 'error');
-    const transcript = state.chat
-      .map((m) => `${m.role === 'user' ? 'User' : 'AI'}:\n${m.content}`)
-      .join('\n\n');
-
-    const title = `Chat ${new Date().toLocaleString()}`;
-    createNoteWithContent(title, transcript, ['chat']);
-    showView('notes');
-    showToast('Chat saved to notes', 'success');
-  }
-
-  async function copyText(text) {
-    try {
-      await navigator.clipboard.writeText(text);
-      showToast('Copied', 'success');
-    } catch {
-      showToast('Copy failed', 'error');
-    }
-  }
-
-  function renderChat({ forceScroll = false } = {}) {
-    const stick = forceScroll || isNearBottom(els.chatHistory);
-
+  function renderChat() {
     els.chatHistory.innerHTML = '';
     if (state.chat.length === 0) {
       els.chatHistory.innerHTML = `<p class="text-center text-muted-text py-8">Start a conversation.</p>`;
@@ -540,40 +520,13 @@ This is a clean demo build.
       }`;
 
       const bubble = document.createElement('div');
-      bubble.className = `message-bubble max-w-[80%] p-3 border-neo ${
+      bubble.className = `message-bubble p-3 border-neo ${
         m.role === 'user' ? 'bg-primary text-white' : 'bg-surface text-text'
       }`;
 
-      const contentDiv = document.createElement('div');
-      contentDiv.className = 'prose prose-sm max-w-none';
-      contentDiv.innerHTML = marked.parse(m.content);
-      bubble.appendChild(contentDiv);
-
-      // Actions for assistant messages
-      if (m.role === 'assistant') {
-        const actions = document.createElement('div');
-        actions.className = 'flex gap-2 justify-end mt-2';
-
-        const saveBtn = document.createElement('button');
-        saveBtn.className = 'btn-neo text-xs';
-        saveBtn.textContent = 'Save to Notes';
-        saveBtn.addEventListener('click', () => {
-          const title = `AI Reply ${new Date().toLocaleString()}`;
-          createNoteWithContent(title, m.content, ['chat', 'ai']);
-          showView('notes');
-          showToast('Reply saved to notes', 'success');
-        });
-
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'btn-neo text-xs';
-        copyBtn.textContent = 'Copy';
-        copyBtn.addEventListener('click', () => copyText(m.content));
-
-        actions.appendChild(copyBtn);
-        actions.appendChild(saveBtn);
-        bubble.appendChild(actions);
-      }
-
+      bubble.innerHTML = `<div class="prose prose-sm max-w-none">${marked.parse(
+        m.content
+      )}</div>`;
       row.appendChild(bubble);
       els.chatHistory.appendChild(row);
     });
@@ -581,15 +534,33 @@ This is a clean demo build.
     els.chatHistory
       .querySelectorAll('pre code')
       .forEach((b) => hljs.highlightElement(b));
-    if (stick) scrollToBottom();
+    scrollChatToBottom();
   }
 
   function startNewChat() {
     state.chat = [];
-    renderChat({ forceScroll: true });
+    renderChat();
     els.chatInput.value = '';
     autoResize(els.chatInput);
     showToast('New chat session', 'info');
+  }
+
+  function chatToMarkdown() {
+    if (!state.chat.length) return '';
+    return state.chat
+      .map((m) => {
+        const who = m.role === 'user' ? 'You' : 'AI';
+        return `**${who}:**\n\n${m.content}`;
+      })
+      .join('\n\n---\n\n');
+  }
+
+  function saveChatAsNote() {
+    if (!state.chat.length) return showToast('No chat to save', 'error');
+    const title = `Chat - ${new Date().toLocaleString()}`;
+    const content = chatToMarkdown();
+    createNoteWithContent(title, content, ['chat']);
+    showView('notes');
   }
 
   async function sendChat() {
@@ -599,7 +570,7 @@ This is a clean demo build.
     state.chat.push({ role: 'user', content: msg, ts: nowIso() });
     els.chatInput.value = '';
     autoResize(els.chatInput);
-    renderChat({ forceScroll: true });
+    renderChat();
 
     els.typing.classList.remove('hidden');
     try {
@@ -610,14 +581,14 @@ This is a clean demo build.
           : await callSimulatedChat(msg);
 
       state.chat.push({ role: 'assistant', content: reply, ts: nowIso() });
-      renderChat({ forceScroll: true });
+      renderChat();
     } catch (e) {
       state.chat.push({
         role: 'assistant',
         content: `Error: ${e.message}`,
         ts: nowIso(),
       });
-      renderChat({ forceScroll: true });
+      renderChat();
       showToast('Chat failed', 'error');
     } finally {
       els.typing.classList.add('hidden');
@@ -655,6 +626,7 @@ This is a clean demo build.
       const msg = data.error || data.message || `HTTP ${res.status}`;
       throw new Error(msg);
     }
+
     if (!data || !data.content) throw new Error('Bad response');
     return data.content;
   }
@@ -711,6 +683,10 @@ This is a clean demo build.
     }
   });
   els.chatInput.addEventListener('input', () => autoResize(els.chatInput));
+
+  // OPTIONAL save chat
+  if (els.saveChatBtn)
+    els.saveChatBtn.addEventListener('click', saveChatAsNote);
 
   els.promptBtns.forEach((b) =>
     b.addEventListener('click', () => {
