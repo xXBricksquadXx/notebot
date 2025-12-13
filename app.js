@@ -1,4 +1,12 @@
+// app.js (FULL amended)
 document.addEventListener('DOMContentLoaded', () => {
+  // If you want CodePen to hit your deployed serverless function, set this.
+  // Keep your Vercel domain here (or replace with your own).
+  const DEPLOYED_CHAT_ENDPOINT = 'https://notebot-ten.vercel.app/api/chat';
+  const API_CHAT_ENDPOINT = location.hostname.includes('codepen')
+    ? DEPLOYED_CHAT_ENDPOINT
+    : '/api/chat';
+
   // ---------- State ----------
   const state = {
     view: 'notes',
@@ -8,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     chat: [],
     settings: {
       theme: localStorage.getItem('notebot-theme') || 'dark',
-      aiMode: 'simulated', // "simulated" | "serverless"
+      aiMode: localStorage.getItem('notebot-ai-mode') || 'simulated', // "simulated" | "serverless"
     },
     confirmAction: null,
   };
@@ -101,6 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('notebot-notes', JSON.stringify(state.notes));
     localStorage.setItem('notebot-archived', JSON.stringify(state.archived));
     localStorage.setItem('notebot-theme', state.settings.theme);
+    localStorage.setItem('notebot-ai-mode', state.settings.aiMode);
   }
 
   function loadStorage() {
@@ -157,6 +166,11 @@ This is a clean demo build.
       it.classList.toggle('text-white', active);
     });
 
+    // keep selects/toggles in sync regardless of view
+    if (els.aiModeSelect) els.aiModeSelect.value = state.settings.aiMode;
+    if (els.darkToggle)
+      els.darkToggle.checked = state.settings.theme === 'dark';
+
     if (view === 'notes') {
       renderNotesList();
       if (!state.currentNoteId && state.notes.length)
@@ -165,10 +179,6 @@ This is a clean demo build.
     }
     if (view === 'archived') renderArchivedList();
     if (view === 'chatbot') renderChat();
-    if (view === 'settings') {
-      els.darkToggle.checked = state.settings.theme === 'dark';
-      els.aiModeSelect.value = state.settings.aiMode;
-    }
   }
 
   // ---------- Notes ----------
@@ -470,10 +480,12 @@ This is a clean demo build.
       row.className = `flex ${
         m.role === 'user' ? 'justify-end' : 'justify-start'
       }`;
+
       const bubble = document.createElement('div');
       bubble.className = `message-bubble max-w-[80%] p-3 border-neo ${
         m.role === 'user' ? 'bg-primary text-white' : 'bg-surface text-text'
       }`;
+
       bubble.innerHTML = `<div class="prose prose-sm max-w-none">${marked.parse(
         m.content
       )}</div>`;
@@ -540,14 +552,26 @@ This is a clean demo build.
   }
 
   async function callServerlessChat(messages) {
-    // CodePen this will fail (no /api/chat). In GitHub/Vercel it works.
-    const res = await fetch('/api/chat', {
+    // Always send only what the API needs (role/content) to avoid schema issues.
+    const clean = (messages || []).map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    const res = await fetch(API_CHAT_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({ messages: clean }),
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      // show upstream error body if your api returns it
+      const msg = data.error || data.message || `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+
     if (!data || !data.content) throw new Error('Bad response');
     return data.content;
   }
@@ -615,6 +639,7 @@ This is a clean demo build.
 
   els.aiModeSelect.addEventListener('change', () => {
     state.settings.aiMode = els.aiModeSelect.value;
+    saveStorage();
     showToast(`Chat mode: ${state.settings.aiMode}`, 'info');
   });
 
@@ -658,6 +683,7 @@ This is a clean demo build.
   // ---------- Init ----------
   loadStorage();
   applyTheme(state.settings.theme);
-  els.darkToggle.checked = state.settings.theme === 'dark';
+  if (els.aiModeSelect) els.aiModeSelect.value = state.settings.aiMode;
+  if (els.darkToggle) els.darkToggle.checked = state.settings.theme === 'dark';
   showView('notes');
 });

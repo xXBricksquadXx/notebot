@@ -1,26 +1,26 @@
-export default async function handler(req, res) {
-  // Optional: enable CORS if you plan to call this from CodePen (different origin)
+// api/chat.js
+module.exports = async function handler(req, res) {
+  // CORS (needed if you ever call this from CodePen)
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(204).end();
 
-  if (req.method !== 'POST') {
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST')
     return res.status(405).json({ error: 'Method not allowed' });
-  }
 
   const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
+  if (!apiKey)
     return res.status(500).json({ error: 'Missing GROQ_API_KEY on server' });
-  }
 
-  // Vercel may give req.body already parsed; handle both
+  // Vercel may give body as object, string, or buffer-ish; normalize it
   let body = req.body;
+  if (Buffer.isBuffer(body)) body = body.toString('utf8');
   if (typeof body === 'string') {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: 'Invalid JSON' });
+      return res.status(400).json({ error: 'Invalid JSON body' });
     }
   }
 
@@ -29,21 +29,13 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'messages[] is required' });
   }
 
-  // IMPORTANT: strip extras like `ts`
-  const messages = incoming
-    .map((m) => ({ role: m?.role, content: m?.content }))
-    .filter(
-      (m) =>
-        typeof m.role === 'string' &&
-        typeof m.content === 'string' &&
-        m.content.trim()
-    );
+  // Strip extra fields (like ts) and keep only what Groq expects
+  const messages = incoming.map((m) => ({ role: m.role, content: m.content }));
 
-  const model = body?.model || 'llama3-70b-8192';
+  const model = body?.model || process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
 
-  const upstream = await fetch(
-    'https://api.groq.com/openai/v1/chat/completions',
-    {
+  try {
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -52,19 +44,28 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model,
         messages,
-        temperature: 0.2,
+        temperature: 0.7,
       }),
-    }
-  );
-
-  const data = await upstream.json().catch(() => ({}));
-
-  if (!upstream.ok) {
-    return res.status(upstream.status).json({
-      error: data?.error?.message || 'Groq request failed',
     });
-  }
 
-  const content = data?.choices?.[0]?.message?.content || '';
-  return res.status(200).json({ content });
-}
+    const data = await r.json().catch(() => null);
+
+    if (!r.ok) {
+      return res.status(r.status).json({
+        error: data?.error?.message || 'Upstream (Groq) error',
+        upstream: data,
+      });
+    }
+
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) {
+      return res
+        .status(502)
+        .json({ error: 'No content in Groq response', upstream: data });
+    }
+
+    return res.status(200).json({ content });
+  } catch (e) {
+    return res.status(500).json({ error: e?.message || 'Server error' });
+  }
+};
