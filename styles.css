@@ -1,16 +1,24 @@
-/* Neo-Brutalism Custom Styles */
+/* Custom Styles (v1) */
+
+/* ---------- Theme tokens ---------- */
 :root{
   --primary-color:#4A90E2;
   --secondary-color:#E24A90;
   --accent-color:#4AE290;
+
   --background-color:#E0E0E0;
   --surface-color:#F0F0F0;
+
   --text-color:#1A1A1A;
   --muted-text-color:#555555;
+
   --border-color:#000000;
   --shadow-color:#000000;
+
   --success-color:#4AE290;
   --error-color:#E24A4A;
+
+  --focus-color:#4A90E2;
 }
 
 body[data-theme='dark']{
@@ -18,48 +26,97 @@ body[data-theme='dark']{
   --surface-color:#2A2A2A;
   --text-color:#EAEAEA;
   --muted-text-color:#AAAAAA;
+  --focus-color:#4A90E2;
 }
 
+/* ---------- Base ---------- */
+*{ box-sizing:border-box; }
+
+html, body { height: 100%; }
+
 body{
+  margin:0;
   background:var(--background-color);
   color:var(--text-color);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
   transition: background-color .25s ease, color .25s ease;
 }
 
-/* Helpers */
+textarea, input, select, button{
+  font: inherit;
+}
+
+/* Better keyboard focus */
+:focus{ outline:none; }
+:focus-visible{
+  outline:3px solid var(--focus-color);
+  outline-offset:2px;
+}
+
+/* ---------- Utility helpers ---------- */
 .text-primary{ color:var(--primary-color); }
 .text-secondary{ color:var(--secondary-color); }
 .text-accent{ color:var(--accent-color); }
 .text-text{ color:var(--text-color); }
 .text-muted-text{ color:var(--muted-text-color); }
-.bg-primary{ background:var(--primary-color); }
+.text-background{ color:var(--background-color); } /* used in HTML */
+
+.bg-primary{
+  background:var(--primary-color);
+  --btn-bg:var(--primary-color);
+  --btn-fg:#fff;
+}
+.bg-secondary{
+  background:var(--secondary-color);
+  --btn-bg:var(--secondary-color);
+  --btn-fg:#fff;
+}
+.bg-accent{
+  background:var(--accent-color);
+  --btn-bg:var(--accent-color);
+  --btn-fg:var(--background-color);
+}
 .bg-surface{ background:var(--surface-color); }
 .bg-background{ background:var(--background-color); }
+
 .border-border{ border-color:var(--border-color); }
 
+/* Tailwind bg-* compatibility for btn-neo (Cancel uses bg-gray-500) */
+.bg-gray-500{ --btn-bg:#6b7280; --btn-fg:#fff; }
+
+/* ---------- Neo primitives ---------- */
 .border-neo{
   border:2px solid var(--border-color);
   box-shadow:4px 4px 0 var(--shadow-color);
 }
 
+/* Buttons: allow bg-* utilities to win via CSS vars */
 .btn-neo{
   padding:.55rem .9rem;
   font-weight:700;
   border:2px solid var(--border-color);
   box-shadow:3px 3px 0 var(--shadow-color);
   cursor:pointer;
-  background:var(--secondary-color);
-  color:var(--text-color);
+
+  background: var(--btn-bg, var(--secondary-color));
+  color: var(--btn-fg, inherit);
+
   transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease;
   white-space:nowrap;
 }
-.btn-neo:hover{ transform:translate(-2px,-2px); box-shadow:5px 5px 0 var(--shadow-color); }
-.btn-neo:active{ transform:translate(2px,2px); box-shadow:1px 1px 0 var(--shadow-color); }
+
+.btn-neo:hover{
+  transform:translate(-2px,-2px);
+  box-shadow:5px 5px 0 var(--shadow-color);
+}
+.btn-neo:active{
+  transform:translate(2px,2px);
+  box-shadow:1px 1px 0 var(--shadow-color);
+}
 
 .btn-danger{
-  background:var(--error-color) !important;
-  color:#fff !important;
+  --btn-bg: var(--error-color);
+  --btn-fg: #fff;
 }
 
 .input-neo{
@@ -70,7 +127,6 @@ body{
   color:var(--text-color);
 }
 .input-neo:focus{
-  outline:none;
   border-color:var(--primary-color);
   box-shadow:2px 2px 0 var(--primary-color);
 }
@@ -86,7 +142,16 @@ body{
   box-shadow:1px 1px 0 var(--shadow-color);
 }
 
-/* Markdown */
+/* ---------- Notes list selected state (JS adds .selected) ---------- */
+.note-item.selected{
+  background: var(--primary-color);
+  color: #fff;
+}
+.note-item.selected .text-muted-text{
+  color: rgba(255,255,255,.85);
+}
+
+/* ---------- Markdown ---------- */
 .prose pre{
   background:#282c34 !important;
   border:2px solid var(--border-color);
@@ -95,7 +160,9 @@ body{
   border-radius:0;
   overflow:auto;
 }
-.prose code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New"; }
+.prose code{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New";
+}
 
 /* Clamp helpers (replace Tailwind line-clamp plugin) */
 .line-clamp-2{
@@ -105,7 +172,7 @@ body{
   overflow:hidden;
 }
 
-/* Toasts */
+/* ---------- Toasts ---------- */
 .toast{
   min-width:250px;
   max-width:350px;
@@ -124,11 +191,9 @@ body{
 .toast.show{ opacity:1; transform:translateX(0); }
 .toast.success{ background:var(--success-color); color:var(--background-color); }
 .toast.error{ background:var(--error-color); color:#fff; }
-.toast.info{ background:var(--primary-color); color:var(--text-color); }
+.toast.info{ background:var(--primary-color); color:#fff; }
 
-/* Flex overflow fix: allow inner panes to scroll (chat + preview) */
-html, body { height: 100%; }
-
+/* ---------- Flex overflow fix: allow inner panes to scroll ---------- */
 #content,
 #notes-view,
 #archived-view,
@@ -136,15 +201,24 @@ html, body { height: 100%; }
 #settings-view,
 #note-editor,
 #note-preview,
-#chat-history {
-  min-height: 0;
+#chat-history{
+  min-height:0;
 }
 
 /* Tailwind CDN v2 won’t honor max-w-[80%] (arbitrary values). */
-.message-bubble { max-width: 80%; }
+.message-bubble{ max-width:80%; }
 
+/* Chat action buttons inside assistant bubbles */
+.chat-actions{
+  display:flex;
+  gap:.5rem;
+  justify-content:flex-end;
+}
+.chat-actions .btn-neo{
+  padding:.35rem .6rem;
+}
 
-/* Switch */
+/* ---------- Switch ---------- */
 .switch{ position:relative; display:inline-block; width:48px; height:24px; }
 .switch input{ opacity:0; width:0; height:0; }
 .slider{

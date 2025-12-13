@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Notebot.ai (CodePen)</title>
+  <meta name="description" content="Notebot.ai — Neo-brutalist notes with Markdown preview and optional AI chat via Groq." />
+  <meta name="color-scheme" content="light dark" />
+  <title>Notebot.ai</title>
 
   <!-- Tailwind CDN (utility help, optional) -->
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -18,10 +20,15 @@
 
   <link rel="stylesheet" href="./styles.css" />
   <script src="./app.js" defer></script>
-
 </head>
 
 <body class="h-screen">
+  <noscript>
+    <div class="p-4 border-neo bg-surface m-4">
+      This app requires JavaScript enabled.
+    </div>
+  </noscript>
+
   <div id="app" class="flex w-full h-full">
     <!-- Sidebar -->
     <aside id="sidebar" class="w-64 flex flex-col p-4 border-neo">
@@ -29,23 +36,50 @@
         Notebot<span class="text-secondary">.ai</span>
       </h1>
 
-      <nav class="flex-grow">
+      <nav class="flex-grow" aria-label="Primary navigation">
         <ul>
-          <li class="nav-item p-3 mb-3 cursor-pointer hover:bg-primary hover:text-white transition-colors border-neo bg-surface"
-              data-view="notes" aria-label="View Notes">
-            <i class="fas fa-sticky-note mr-2"></i> Notes
+          <li class="mb-3">
+            <button
+              type="button"
+              class="nav-item w-full text-left p-3 cursor-pointer hover:bg-primary hover:text-white transition-colors border-neo bg-surface"
+              data-view="notes"
+              aria-label="View Notes"
+            >
+              <i class="fas fa-sticky-note mr-2" aria-hidden="true"></i> Notes
+            </button>
           </li>
-          <li class="nav-item p-3 mb-3 cursor-pointer hover:bg-primary hover:text-white transition-colors border-neo bg-surface"
-              data-view="archived" aria-label="View Archived Notes">
-            <i class="fas fa-archive mr-2"></i> Archived
+
+          <li class="mb-3">
+            <button
+              type="button"
+              class="nav-item w-full text-left p-3 cursor-pointer hover:bg-primary hover:text-white transition-colors border-neo bg-surface"
+              data-view="archived"
+              aria-label="View Archived Notes"
+            >
+              <i class="fas fa-archive mr-2" aria-hidden="true"></i> Archived
+            </button>
           </li>
-          <li class="nav-item p-3 mb-3 cursor-pointer hover:bg-primary hover:text-white transition-colors border-neo bg-surface"
-              data-view="chatbot" aria-label="Access AI Chatbot">
-            <i class="fas fa-robot mr-2"></i> Chatbot
+
+          <li class="mb-3">
+            <button
+              type="button"
+              class="nav-item w-full text-left p-3 cursor-pointer hover:bg-primary hover:text-white transition-colors border-neo bg-surface"
+              data-view="chatbot"
+              aria-label="Access AI Chatbot"
+            >
+              <i class="fas fa-robot mr-2" aria-hidden="true"></i> Chatbot
+            </button>
           </li>
-          <li class="nav-item p-3 mb-3 cursor-pointer hover:bg-primary hover:text-white transition-colors border-neo bg-surface"
-              data-view="settings" aria-label="Open Settings">
-            <i class="fas fa-cog mr-2"></i> Settings
+
+          <li class="mb-3">
+            <button
+              type="button"
+              class="nav-item w-full text-left p-3 cursor-pointer hover:bg-primary hover:text-white transition-colors border-neo bg-surface"
+              data-view="settings"
+              aria-label="Open Settings"
+            >
+              <i class="fas fa-cog mr-2" aria-hidden="true"></i> Settings
+            </button>
           </li>
         </ul>
       </nav>
@@ -62,9 +96,21 @@
         <!-- List -->
         <div class="w-1/3 flex flex-col border-neo bg-surface p-4 overflow-y-auto">
           <div class="flex items-center mb-4">
-            <input type="text" id="notes-search-input" placeholder="Search notes..." class="flex-grow input-neo mr-2">
-            <button id="new-note-btn" class="btn-neo bg-accent text-background" title="New note">
-              <i class="fas fa-plus"></i>
+            <input
+              type="text"
+              id="notes-search-input"
+              placeholder="Search notes..."
+              class="flex-grow input-neo mr-2"
+              aria-label="Search notes"
+            >
+            <button
+              type="button"
+              id="new-note-btn"
+              class="btn-neo bg-accent text-background"
+              title="New note"
+              aria-label="Create new note"
+            >
+              <i class="fas fa-plus" aria-hidden="true"></i>
             </button>
           </div>
           <div id="notes-list" class="flex-grow space-y-3" role="list"></div>
@@ -72,42 +118,68 @@
 
         <!-- Editor -->
         <div id="note-editor" class="flex-grow flex flex-col border-neo bg-surface p-4 overflow-hidden">
-          <input type="text" id="note-title-input" placeholder="Note Title" class="input-neo text-xl font-bold mb-4">
+          <input
+            type="text"
+            id="note-title-input"
+            placeholder="Note Title"
+            class="input-neo text-xl font-bold mb-4"
+            aria-label="Note title"
+          >
 
-          <textarea id="note-content-input" placeholder="Write Markdown..." class="flex-grow input-neo mb-4 resize-none"></textarea>
+          <textarea
+            id="note-content-input"
+            placeholder="Write Markdown..."
+            class="flex-grow input-neo mb-4 resize-none"
+            aria-label="Note content"
+          ></textarea>
 
           <div class="flex items-center mb-4">
-            <input type="text" id="note-tags-input" placeholder="Tags (comma-separated)" class="input-neo flex-grow mr-2 text-sm">
-            <div id="note-tags-display" class="flex flex-wrap gap-1"></div>
+            <input
+              type="text"
+              id="note-tags-input"
+              placeholder="Tags (comma-separated)"
+              class="input-neo flex-grow mr-2 text-sm"
+              aria-label="Note tags"
+            >
+            <div id="note-tags-display" class="flex flex-wrap gap-1" aria-label="Tags display"></div>
           </div>
 
           <div class="flex justify-between items-center mb-4">
             <div class="flex space-x-2">
-              <button id="note-pin-btn" class="btn-neo text-sm">
-                <i class="fas fa-thumbtack mr-1"></i> <span class="pin-text">Pin</span>
+              <button type="button" id="note-pin-btn" class="btn-neo text-sm" aria-label="Pin note">
+                <i class="fas fa-thumbtack mr-1" aria-hidden="true"></i> <span class="pin-text">Pin</span>
               </button>
-              <button id="note-archive-btn" class="btn-neo text-sm">
-                <i class="fas fa-box-archive mr-1"></i> Archive
+              <button type="button" id="note-archive-btn" class="btn-neo text-sm" aria-label="Archive note">
+                <i class="fas fa-box-archive mr-1" aria-hidden="true"></i> Archive
               </button>
-              <button id="note-send-to-ai-btn" class="btn-neo text-sm bg-secondary text-background">
-                <i class="fas fa-robot mr-1"></i> Send to AI
+              <button
+                type="button"
+                id="note-send-to-ai-btn"
+                class="btn-neo text-sm bg-secondary text-background"
+                aria-label="Send note to AI"
+              >
+                <i class="fas fa-robot mr-1" aria-hidden="true"></i> Send to AI
               </button>
             </div>
 
             <div class="flex space-x-2">
-              <button id="note-export-md-btn" class="btn-neo text-sm">
-                <i class="fas fa-file-export mr-1"></i> MD
+              <button type="button" id="note-export-md-btn" class="btn-neo text-sm" aria-label="Export as Markdown">
+                <i class="fas fa-file-export mr-1" aria-hidden="true"></i> MD
               </button>
-              <button id="note-export-txt-btn" class="btn-neo text-sm">
-                <i class="fas fa-file-export mr-1"></i> TXT
+              <button type="button" id="note-export-txt-btn" class="btn-neo text-sm" aria-label="Export as Text">
+                <i class="fas fa-file-export mr-1" aria-hidden="true"></i> TXT
               </button>
-              <button id="note-delete-btn" class="btn-neo text-sm btn-danger">
-                <i class="fas fa-trash mr-1"></i> Delete
+              <button type="button" id="note-delete-btn" class="btn-neo text-sm btn-danger" aria-label="Delete note">
+                <i class="fas fa-trash mr-1" aria-hidden="true"></i> Delete
               </button>
             </div>
           </div>
 
-          <div id="note-preview" class="flex-grow border-neo bg-background p-4 overflow-y-auto">
+          <div
+            id="note-preview"
+            class="flex-grow border-neo bg-background p-4 overflow-y-auto"
+            aria-label="Markdown preview"
+          >
             <div class="prose max-w-none text-text"></div>
           </div>
         </div>
@@ -124,34 +196,52 @@
         <h2 class="text-2xl font-bold mb-4 text-primary">AI Chatbot</h2>
 
         <div class="flex items-center mb-4">
-          <label class="mr-2 text-muted-text">Mode:</label>
-          <select id="ai-mode-select" class="input-neo mr-4">
-            <option value="simulated">Simulated (CodePen)</option>
+          <label class="mr-2 text-muted-text" for="ai-mode-select">Mode:</label>
+          <select id="ai-mode-select" class="input-neo mr-4" aria-label="AI mode">
+            <option value="simulated">Simulated (no API)</option>
             <option value="serverless">Serverless (/api/chat)</option>
           </select>
 
-          <button id="chatbot-new-session-btn" class="btn-neo bg-accent text-background mr-auto">
-            <i class="fas fa-redo mr-1"></i> New Session
+          <button type="button" id="chatbot-new-session-btn" class="btn-neo bg-accent text-background mr-auto">
+            <i class="fas fa-redo mr-1" aria-hidden="true"></i> New Session
+          </button>
+
+          <!-- IMPORTANT: matches app.js -->
+          <button type="button" id="chatbot-save-chat-btn" class="btn-neo bg-secondary text-background">
+            <i class="fas fa-save mr-1" aria-hidden="true"></i> Save Chat
           </button>
         </div>
 
-        <div id="chat-history" class="flex-grow border-neo bg-background p-4 overflow-y-auto space-y-4"></div>
+        <div
+          id="chat-history"
+          class="flex-grow border-neo bg-background p-4 overflow-y-auto space-y-4"
+          aria-label="Chat history"
+        ></div>
 
-        <div id="chatbot-typing-indicator" class="text-muted-text text-sm mt-2 mb-4 hidden">
-          <i class="fas fa-ellipsis-h animate-pulse mr-1"></i> AI is typing...
+        <div
+          id="chatbot-typing-indicator"
+          class="text-muted-text text-sm mt-2 mb-4 hidden"
+          aria-live="polite"
+        >
+          <i class="fas fa-ellipsis-h animate-pulse mr-1" aria-hidden="true"></i> AI is typing...
         </div>
 
-        <div class="flex flex-wrap gap-2 mb-4">
-          <button class="prompt-template-btn btn-neo text-xs" data-template="Summarize this note:\n\n">Summarize</button>
-          <button class="prompt-template-btn btn-neo text-xs" data-template="Extract action items:\n\n">Action items</button>
-          <button class="prompt-template-btn btn-neo text-xs" data-template="Rewrite in a professional tone:\n\n">Rewrite</button>
-          <button class="prompt-template-btn btn-neo text-xs" data-template="Generate ideas for:\n\n">Ideas</button>
+        <div class="flex flex-wrap gap-2 mb-4" aria-label="Prompt templates">
+          <button type="button" class="prompt-template-btn btn-neo text-xs" data-template="Summarize this note:\n\n">Summarize</button>
+          <button type="button" class="prompt-template-btn btn-neo text-xs" data-template="Extract action items:\n\n">Action items</button>
+          <button type="button" class="prompt-template-btn btn-neo text-xs" data-template="Rewrite in a professional tone:\n\n">Rewrite</button>
+          <button type="button" class="prompt-template-btn btn-neo text-xs" data-template="Generate ideas for:\n\n">Ideas</button>
         </div>
 
         <div class="flex">
-          <textarea id="chat-input" placeholder="Type your message..." class="flex-grow input-neo resize-none h-12 mr-2"></textarea>
-          <button id="send-chat-btn" class="btn-neo bg-primary text-white" aria-label="Send Message">
-            <i class="fas fa-paper-plane"></i>
+          <textarea
+            id="chat-input"
+            placeholder="Type your message..."
+            class="flex-grow input-neo resize-none h-12 mr-2"
+            aria-label="Chat input"
+          ></textarea>
+          <button type="button" id="send-chat-btn" class="btn-neo bg-primary text-white" aria-label="Send Message">
+            <i class="fas fa-paper-plane" aria-hidden="true"></i>
           </button>
         </div>
       </section>
@@ -166,7 +256,7 @@
             <div class="flex items-center">
               <span class="mr-4">Dark Mode:</span>
               <label class="switch">
-                <input type="checkbox" id="dark-mode-toggle">
+                <input type="checkbox" id="dark-mode-toggle" aria-label="Toggle dark mode">
                 <span class="slider round"></span>
               </label>
             </div>
@@ -175,7 +265,7 @@
           <div>
             <h3 class="text-xl font-semibold mb-2 text-accent">Serverless</h3>
             <p class="text-sm text-muted-text">
-              CodePen cannot host /api/chat. Use “Simulated” in Chatbot mode here.
+              CodePen cannot host /api/chat. Use “Simulated” in Chatbot mode there.
               In GitHub/Vercel you’ll switch to “Serverless”.
             </p>
           </div>
@@ -185,15 +275,25 @@
   </div>
 
   <!-- Modal -->
-  <div id="modal-container" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 hidden" role="dialog" aria-modal="true">
+  <div
+    id="modal-container"
+    class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 hidden"
+    role="dialog"
+    aria-modal="true"
+  >
     <div id="confirmation-modal" class="bg-surface p-6 border-neo w-96 relative">
       <h3 id="modal-title" class="text-xl font-bold mb-4 text-primary">Confirmation</h3>
       <p id="modal-message" class="mb-6 text-text">Are you sure?</p>
       <div class="flex justify-end space-x-4">
-        <button id="modal-cancel-btn" class="btn-neo bg-gray-500 text-white">Cancel</button>
-        <button id="modal-confirm-btn" class="btn-neo btn-danger">Confirm</button>
+        <button type="button" id="modal-cancel-btn" class="btn-neo bg-gray-500 text-white">Cancel</button>
+        <button type="button" id="modal-confirm-btn" class="btn-neo btn-danger">Confirm</button>
       </div>
-      <button id="modal-close-btn" class="absolute top-2 right-4 text-2xl font-bold text-muted-text hover:text-white" aria-label="Close modal">
+      <button
+        type="button"
+        id="modal-close-btn"
+        class="absolute top-2 right-4 text-2xl font-bold text-muted-text hover:text-white"
+        aria-label="Close modal"
+      >
         &times;
       </button>
     </div>

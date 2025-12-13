@@ -1,6 +1,5 @@
 // api/chat.js (ESM)
 export default async function handler(req, res) {
-  // CORS (only matters if you call this cross-origin, e.g. CodePen)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -13,7 +12,7 @@ export default async function handler(req, res) {
   if (!apiKey)
     return res.status(500).json({ error: 'Missing GROQ_API_KEY on server' });
 
-  // Normalize body (object|string|buffer)
+  // Normalize body (Vercel can provide object/string/buffer-ish)
   let body = req.body;
   if (Buffer.isBuffer(body)) body = body.toString('utf8');
   if (typeof body === 'string') {

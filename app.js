@@ -1,13 +1,15 @@
-// app.js (FULL amended + scroll fix)
+// app.js
 document.addEventListener('DOMContentLoaded', () => {
   // If you want CodePen to hit your deployed serverless function, set this.
   const DEPLOYED_CHAT_ENDPOINT = 'https://notebot-ten.vercel.app/api/chat';
 
-  const isCodepen =
-    /(^|\.)codepen\.io$/.test(location.hostname) ||
-    /(^|\.)cdpn\.io$/.test(location.hostname);
+  const isCodepenLikeHost =
+    location.hostname.includes('codepen') ||
+    location.hostname.includes('cdpn.io');
 
-  const API_CHAT_ENDPOINT = isCodepen ? DEPLOYED_CHAT_ENDPOINT : '/api/chat';
+  const API_CHAT_ENDPOINT = isCodepenLikeHost
+    ? DEPLOYED_CHAT_ENDPOINT
+    : '/api/chat';
 
   // ---------- State ----------
   const state = {
@@ -54,15 +56,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     aiModeSelect: $('ai-mode-select'),
     chatNewBtn: $('chatbot-new-session-btn'),
+    chatSaveBtn: $('chatbot-save-chat-btn'), // MUST exist in index.html
     chatHistory: $('chat-history'),
     chatInput: $('chat-input'),
     chatSend: $('send-chat-btn'),
     typing: $('chatbot-typing-indicator'),
     promptBtns: document.querySelectorAll('.prompt-template-btn'),
-
-    // OPTIONAL: if you add a button in HTML like:
-    // <button id="save-chat-btn" class="btn-neo ...">Save Chat</button>
-    saveChatBtn: $('save-chat-btn'),
 
     darkToggle: $('dark-mode-toggle'),
 
@@ -82,6 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
     Date.now().toString(36) + Math.random().toString(36).slice(2);
 
   function showToast(msg, type = 'info', ms = 2200) {
+    if (!els.toastContainer) return;
     const t = document.createElement('div');
     t.className = `toast ${type}`;
     const icon =
@@ -153,29 +153,18 @@ This is a clean demo build.
     saveStorage();
   }
 
-  // ---------- Scroll helpers (fix “new messages not visible”) ----------
-  function scrollChatToBottom(behavior = 'auto') {
-    if (!els.chatHistory) return;
-    requestAnimationFrame(() => {
-      els.chatHistory.scrollTo({
-        top: els.chatHistory.scrollHeight,
-        behavior,
-      });
-    });
-  }
-
   // ---------- Views ----------
   function showView(view) {
     state.view = view;
-    els.notesView.classList.add('hidden');
-    els.archivedView.classList.add('hidden');
-    els.chatbotView.classList.add('hidden');
-    els.settingsView.classList.add('hidden');
+    els.notesView?.classList.add('hidden');
+    els.archivedView?.classList.add('hidden');
+    els.chatbotView?.classList.add('hidden');
+    els.settingsView?.classList.add('hidden');
 
-    if (view === 'notes') els.notesView.classList.remove('hidden');
-    if (view === 'archived') els.archivedView.classList.remove('hidden');
-    if (view === 'chatbot') els.chatbotView.classList.remove('hidden');
-    if (view === 'settings') els.settingsView.classList.remove('hidden');
+    if (view === 'notes') els.notesView?.classList.remove('hidden');
+    if (view === 'archived') els.archivedView?.classList.remove('hidden');
+    if (view === 'chatbot') els.chatbotView?.classList.remove('hidden');
+    if (view === 'settings') els.settingsView?.classList.remove('hidden');
 
     els.navItems.forEach((it) => {
       const active = it.getAttribute('data-view') === view;
@@ -183,21 +172,19 @@ This is a clean demo build.
       it.classList.toggle('text-white', active);
     });
 
+    // keep selects/toggles synced
     if (els.aiModeSelect) els.aiModeSelect.value = state.settings.aiMode;
     if (els.darkToggle)
       els.darkToggle.checked = state.settings.theme === 'dark';
 
     if (view === 'notes') {
-      renderNotesList();
+      renderNotesList(els.notesSearch?.value || '');
       if (!state.currentNoteId && state.notes.length)
         selectNote(state.notes[0].id);
       if (!state.currentNoteId && state.notes.length === 0) createNote();
     }
     if (view === 'archived') renderArchivedList();
-    if (view === 'chatbot') {
-      renderChat();
-      scrollChatToBottom();
-    }
+    if (view === 'chatbot') renderChat(true);
   }
 
   // ---------- Notes ----------
@@ -214,12 +201,12 @@ This is a clean demo build.
     state.notes.unshift(n);
     state.currentNoteId = n.id;
     saveStorage();
-    renderNotesList();
+    renderNotesList(els.notesSearch?.value || '');
     selectNote(n.id);
     showToast('New note created', 'success');
   }
 
-  function createNoteWithContent(title, content, tags = []) {
+  function createNoteWithContent(title, content, tags = ['chat']) {
     const n = {
       id: uid(),
       title: title || 'New Note',
@@ -232,7 +219,7 @@ This is a clean demo build.
     state.notes.unshift(n);
     state.currentNoteId = n.id;
     saveStorage();
-    renderNotesList();
+    showView('notes');
     selectNote(n.id);
     showToast('Saved to Notes', 'success');
   }
@@ -242,12 +229,12 @@ This is a clean demo build.
     const n = state.notes.find((x) => x.id === id);
     if (!n) return;
 
-    els.title.value = n.title;
-    els.content.value = n.content;
-    els.tags.value = n.tags.join(', ');
-    els.pinText.textContent = n.pinned ? 'Unpin' : 'Pin';
-    els.pinBtn.classList.toggle('bg-primary', n.pinned);
-    els.pinBtn.classList.toggle('text-white', n.pinned);
+    if (els.title) els.title.value = n.title;
+    if (els.content) els.content.value = n.content;
+    if (els.tags) els.tags.value = n.tags.join(', ');
+    if (els.pinText) els.pinText.textContent = n.pinned ? 'Unpin' : 'Pin';
+    els.pinBtn?.classList.toggle('bg-primary', n.pinned);
+    els.pinBtn?.classList.toggle('text-white', n.pinned);
 
     document.querySelectorAll('.note-item').forEach((el) => {
       el.classList.toggle('selected', el.dataset.noteId === id);
@@ -266,8 +253,10 @@ This is a clean demo build.
 
   function renderTags() {
     const n = state.notes.find((x) => x.id === state.currentNoteId);
+    if (!els.tagsDisplay) return;
     els.tagsDisplay.innerHTML = '';
     if (!n) return;
+
     n.tags.forEach((t) => {
       const s = document.createElement('span');
       s.className = 'tag-neo';
@@ -277,15 +266,19 @@ This is a clean demo build.
   }
 
   function renderPreview() {
+    if (!els.preview || !els.content) return;
     const html = marked.parse(els.content.value || '');
-    els.preview.querySelector('.prose').innerHTML = html;
+    const target = els.preview.querySelector('.prose');
+    if (target) target.innerHTML = html;
     els.preview
       .querySelectorAll('pre code')
       .forEach((b) => hljs.highlightElement(b));
   }
 
   function renderNotesList(filterTerm = '') {
-    const term = filterTerm.trim().toLowerCase();
+    if (!els.notesList) return;
+
+    const term = (filterTerm || '').trim().toLowerCase();
     const list = term
       ? state.notes.filter(
           (n) =>
@@ -342,21 +335,22 @@ This is a clean demo build.
     const n = state.notes.find((x) => x.id === state.currentNoteId);
     if (!n) return showToast('No note selected', 'error');
     updateCurrentNote({ pinned: !n.pinned });
-    renderNotesList(els.notesSearch.value);
+    renderNotesList(els.notesSearch?.value || '');
     selectNote(n.id);
     showToast(n.pinned ? 'Unpinned' : 'Pinned', 'info');
   }
 
   function confirmModal(title, message, action) {
-    els.modalTitle.textContent = title;
-    els.modalMessage.textContent = message;
+    if (!els.modalContainer) return;
+    if (els.modalTitle) els.modalTitle.textContent = title;
+    if (els.modalMessage) els.modalMessage.textContent = message;
     state.confirmAction = action;
     els.modalContainer.classList.remove('hidden');
-    els.modalConfirm.focus();
+    els.modalConfirm?.focus();
   }
 
   function closeModal() {
-    els.modalContainer.classList.add('hidden');
+    els.modalContainer?.classList.add('hidden');
     state.confirmAction = null;
   }
 
@@ -375,7 +369,7 @@ This is a clean demo build.
         state.archived.unshift(n);
         state.notes.splice(idx, 1);
         saveStorage();
-        renderNotesList(els.notesSearch.value);
+        renderNotesList(els.notesSearch?.value || '');
         renderArchivedList();
         if (state.notes[0]) selectNote(state.notes[0].id);
         else {
@@ -399,7 +393,7 @@ This is a clean demo build.
         const title = state.notes[idx].title;
         state.notes.splice(idx, 1);
         saveStorage();
-        renderNotesList(els.notesSearch.value);
+        renderNotesList(els.notesSearch?.value || '');
         if (state.notes[0]) selectNote(state.notes[0].id);
         else {
           state.currentNoteId = null;
@@ -427,6 +421,7 @@ This is a clean demo build.
   }
 
   function renderArchivedList() {
+    if (!els.archivedList) return;
     els.archivedList.innerHTML = '';
     if (state.archived.length === 0) {
       els.archivedList.innerHTML = `<p class="text-center text-muted-text py-8">No archived notes yet.</p>`;
@@ -498,22 +493,89 @@ This is a clean demo build.
     const n = state.notes.find((x) => x.id === state.currentNoteId);
     if (!n) return showToast('No note selected', 'error');
     showView('chatbot');
-    els.chatInput.value = `Summarize this note titled "${n.title}":\n\n${n.content}`;
-    els.chatInput.focus();
-    autoResize(els.chatInput);
+    if (els.chatInput) {
+      els.chatInput.value = `Summarize this note titled "${n.title}":\n\n${n.content}`;
+      els.chatInput.focus();
+      autoResize(els.chatInput);
+    }
     showToast('Copied note to chatbot', 'info');
-    scrollChatToBottom();
+  }
+
+  // ---------- Chat helpers ----------
+  function isNearBottom(el, threshold = 140) {
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+  }
+
+  function scrollChatToBottom() {
+    if (!els.chatHistory) return;
+    els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
+  }
+
+  async function copyToClipboard(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast('Copied', 'success');
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      showToast('Copied', 'success');
+    }
+  }
+
+  function chatMessageToNoteMarkdown(idx) {
+    const m = state.chat[idx];
+    if (!m) return null;
+
+    // nearest previous user message as "prompt"
+    let prompt = '';
+    for (let i = idx - 1; i >= 0; i--) {
+      if (state.chat[i]?.role === 'user') {
+        prompt = state.chat[i].content || '';
+        break;
+      }
+    }
+
+    const titleBase = (prompt || m.content || 'Chat').slice(0, 60).trim();
+    const title = `Chat: ${titleBase || 'Saved response'}`;
+
+    const md = prompt
+      ? `## Prompt\n\n${prompt}\n\n---\n\n## Response\n\n${m.content}\n`
+      : `${m.content}\n`;
+
+    return { title, md };
+  }
+
+  function fullChatToMarkdown() {
+    const lines = [];
+    const stamp = new Date().toLocaleString();
+    lines.push(`# Chat Session\n\nSaved: ${stamp}\n`);
+
+    state.chat.forEach((m) => {
+      const who = m.role === 'user' ? 'User' : 'Assistant';
+      lines.push(`## ${who}\n\n${m.content}\n`);
+    });
+
+    return lines.join('\n');
   }
 
   // ---------- Chat ----------
-  function renderChat() {
+  function renderChat(forceScroll = false) {
+    if (!els.chatHistory) return;
+
+    const stick = forceScroll || isNearBottom(els.chatHistory);
+
     els.chatHistory.innerHTML = '';
     if (state.chat.length === 0) {
       els.chatHistory.innerHTML = `<p class="text-center text-muted-text py-8">Start a conversation.</p>`;
       return;
     }
 
-    state.chat.forEach((m) => {
+    state.chat.forEach((m, idx) => {
       const row = document.createElement('div');
       row.className = `flex ${
         m.role === 'user' ? 'justify-end' : 'justify-start'
@@ -527,6 +589,18 @@ This is a clean demo build.
       bubble.innerHTML = `<div class="prose prose-sm max-w-none">${marked.parse(
         m.content
       )}</div>`;
+
+      // Per-message actions for assistant
+      if (m.role !== 'user') {
+        const actions = document.createElement('div');
+        actions.className = 'chat-actions mt-2 flex gap-2 justify-end';
+        actions.innerHTML = `
+          <button class="btn-neo text-xs" data-action="copy" data-idx="${idx}">Copy</button>
+          <button class="btn-neo text-xs" data-action="save" data-idx="${idx}">Save to Notes</button>
+        `;
+        bubble.appendChild(actions);
+      }
+
       row.appendChild(bubble);
       els.chatHistory.appendChild(row);
     });
@@ -534,45 +608,42 @@ This is a clean demo build.
     els.chatHistory
       .querySelectorAll('pre code')
       .forEach((b) => hljs.highlightElement(b));
-    scrollChatToBottom();
+
+    if (stick) {
+      // double RAF is noticeably more reliable after large code blocks + highlight
+      requestAnimationFrame(() => requestAnimationFrame(scrollChatToBottom));
+    }
   }
 
   function startNewChat() {
     state.chat = [];
-    renderChat();
-    els.chatInput.value = '';
-    autoResize(els.chatInput);
+    renderChat(true);
+    if (els.chatInput) {
+      els.chatInput.value = '';
+      autoResize(els.chatInput);
+    }
     showToast('New chat session', 'info');
   }
 
-  function chatToMarkdown() {
-    if (!state.chat.length) return '';
-    return state.chat
-      .map((m) => {
-        const who = m.role === 'user' ? 'You' : 'AI';
-        return `**${who}:**\n\n${m.content}`;
-      })
-      .join('\n\n---\n\n');
-  }
-
-  function saveChatAsNote() {
-    if (!state.chat.length) return showToast('No chat to save', 'error');
-    const title = `Chat - ${new Date().toLocaleString()}`;
-    const content = chatToMarkdown();
-    createNoteWithContent(title, content, ['chat']);
-    showView('notes');
+  function saveFullChatToNotes() {
+    if (!state.chat.length) return showToast('Nothing to save', 'error');
+    const md = fullChatToMarkdown();
+    const title = `Chat Session ${new Date().toLocaleDateString()}`;
+    createNoteWithContent(title, md, ['chat', 'session']);
   }
 
   async function sendChat() {
-    const msg = els.chatInput.value.trim();
+    const msg = (els.chatInput?.value || '').trim();
     if (!msg) return showToast('Type a message', 'error');
 
     state.chat.push({ role: 'user', content: msg, ts: nowIso() });
-    els.chatInput.value = '';
-    autoResize(els.chatInput);
-    renderChat();
+    if (els.chatInput) {
+      els.chatInput.value = '';
+      autoResize(els.chatInput);
+    }
+    renderChat(true);
 
-    els.typing.classList.remove('hidden');
+    els.typing?.classList.remove('hidden');
     try {
       const mode = state.settings.aiMode;
       const reply =
@@ -581,17 +652,17 @@ This is a clean demo build.
           : await callSimulatedChat(msg);
 
       state.chat.push({ role: 'assistant', content: reply, ts: nowIso() });
-      renderChat();
+      renderChat(true);
     } catch (e) {
       state.chat.push({
         role: 'assistant',
         content: `Error: ${e.message}`,
         ts: nowIso(),
       });
-      renderChat();
+      renderChat(true);
       showToast('Chat failed', 'error');
     } finally {
-      els.typing.classList.add('hidden');
+      els.typing?.classList.add('hidden');
     }
   }
 
@@ -608,7 +679,6 @@ This is a clean demo build.
   }
 
   async function callServerlessChat(messages) {
-    // Always send only what the API needs (role/content) to avoid schema issues.
     const clean = (messages || []).map((m) => ({
       role: m.role,
       content: m.content,
@@ -621,100 +691,122 @@ This is a clean demo build.
     });
 
     const data = await res.json().catch(() => ({}));
-
     if (!res.ok) {
       const msg = data.error || data.message || `HTTP ${res.status}`;
       throw new Error(msg);
     }
 
-    if (!data || !data.content) throw new Error('Bad response');
+    if (!data?.content) throw new Error('Bad response');
     return data.content;
   }
 
   // ---------- Events ----------
   function autoResize(el) {
+    if (!el) return;
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 220) + 'px';
   }
 
+  // nav
   els.navItems.forEach((it) =>
     it.addEventListener('click', () => showView(it.dataset.view))
   );
 
-  els.notesSearch.addEventListener('input', (e) =>
+  // notes
+  els.notesSearch?.addEventListener('input', (e) =>
     renderNotesList(e.target.value)
   );
-  els.newNoteBtn.addEventListener('click', createNote);
+  els.newNoteBtn?.addEventListener('click', createNote);
 
-  els.title.addEventListener('input', () => {
+  els.title?.addEventListener('input', () => {
     updateCurrentNote({ title: els.title.value || 'Untitled' });
-    renderNotesList(els.notesSearch.value);
+    renderNotesList(els.notesSearch?.value || '');
   });
 
-  els.content.addEventListener('input', () => {
+  els.content?.addEventListener('input', () => {
     updateCurrentNote({ content: els.content.value });
     renderPreview();
   });
 
-  els.tags.addEventListener('input', () => {
-    const raw = els.tags.value;
-    const parsed = raw
+  els.tags?.addEventListener('input', () => {
+    const parsed = els.tags.value
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean);
     updateCurrentNote({ tags: parsed });
     renderTags();
-    renderNotesList(els.notesSearch.value);
+    renderNotesList(els.notesSearch?.value || '');
   });
 
-  els.pinBtn.addEventListener('click', togglePin);
-  els.archiveBtn.addEventListener('click', archiveNote);
-  els.deleteBtn.addEventListener('click', deleteNote);
-  els.exportMdBtn.addEventListener('click', exportMD);
-  els.exportTxtBtn.addEventListener('click', exportTXT);
-  els.sendToAiBtn.addEventListener('click', sendCurrentNoteToChat);
+  els.pinBtn?.addEventListener('click', togglePin);
+  els.archiveBtn?.addEventListener('click', archiveNote);
+  els.deleteBtn?.addEventListener('click', deleteNote);
+  els.exportMdBtn?.addEventListener('click', exportMD);
+  els.exportTxtBtn?.addEventListener('click', exportTXT);
+  els.sendToAiBtn?.addEventListener('click', sendCurrentNoteToChat);
 
-  els.chatNewBtn.addEventListener('click', startNewChat);
-  els.chatSend.addEventListener('click', sendChat);
-  els.chatInput.addEventListener('keydown', (e) => {
+  // chat controls
+  els.chatNewBtn?.addEventListener('click', startNewChat);
+  els.chatSaveBtn?.addEventListener('click', saveFullChatToNotes);
+
+  els.chatSend?.addEventListener('click', sendChat);
+  els.chatInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendChat();
     }
   });
-  els.chatInput.addEventListener('input', () => autoResize(els.chatInput));
+  els.chatInput?.addEventListener('input', () => autoResize(els.chatInput));
 
-  // OPTIONAL save chat
-  if (els.saveChatBtn)
-    els.saveChatBtn.addEventListener('click', saveChatAsNote);
-
+  // chat prompt templates
   els.promptBtns.forEach((b) =>
     b.addEventListener('click', () => {
+      if (!els.chatInput) return;
       els.chatInput.value = b.dataset.template;
       autoResize(els.chatInput);
       els.chatInput.focus();
     })
   );
 
-  els.aiModeSelect.addEventListener('change', () => {
+  // chat per-message actions (event delegation)
+  els.chatHistory?.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+
+    const action = btn.dataset.action;
+    const idx = Number(btn.dataset.idx);
+    const m = state.chat[idx];
+    if (!m) return;
+
+    if (action === 'copy') return copyToClipboard(m.content || '');
+    if (action === 'save') {
+      const payload = chatMessageToNoteMarkdown(idx);
+      if (!payload) return;
+      return createNoteWithContent(payload.title, payload.md, ['chat']);
+    }
+  });
+
+  // settings
+  els.aiModeSelect?.addEventListener('change', () => {
     state.settings.aiMode = els.aiModeSelect.value;
     saveStorage();
     showToast(`Chat mode: ${state.settings.aiMode}`, 'info');
   });
 
-  els.darkToggle.addEventListener('change', () => {
+  els.darkToggle?.addEventListener('change', () => {
     applyTheme(els.darkToggle.checked ? 'dark' : 'light');
     showToast('Theme updated', 'info');
   });
 
-  els.modalCancel.addEventListener('click', closeModal);
-  els.modalClose.addEventListener('click', closeModal);
-  els.modalConfirm.addEventListener('click', () => {
+  // modal
+  els.modalCancel?.addEventListener('click', closeModal);
+  els.modalClose?.addEventListener('click', closeModal);
+  els.modalConfirm?.addEventListener('click', () => {
     const fn = state.confirmAction;
     closeModal();
     if (fn) fn();
   });
-  els.modalContainer.addEventListener('click', (e) => {
+  els.modalContainer?.addEventListener('click', (e) => {
     if (e.target === els.modalContainer) closeModal();
   });
 
@@ -722,9 +814,11 @@ This is a clean demo build.
   function sleep(ms) {
     return new Promise((r) => setTimeout(r, ms));
   }
+
   function safeName(s) {
     return (s || 'note').replace(/[^a-z0-9]/gi, '_').slice(0, 60);
   }
+
   function escapeHtml(str) {
     return (str || '').replace(
       /[&<>"']/g,
