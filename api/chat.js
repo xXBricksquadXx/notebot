@@ -1,19 +1,23 @@
-// api/chat.js
-module.exports = async function handler(req, res) {
+// api/chat.js (ESM)
+import { Buffer } from 'node:buffer';
+
+export default async function handler(req, res) {
   // CORS (needed if you ever call this from CodePen)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST')
+  if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
 
   const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey)
+  if (!apiKey) {
     return res.status(500).json({ error: 'Missing GROQ_API_KEY on server' });
+  }
 
-  // Vercel may give body as object, string, or buffer-ish; normalize it
+  // Normalize body (Vercel can give object|string|buffer-ish)
   let body = req.body;
   if (Buffer.isBuffer(body)) body = body.toString('utf8');
   if (typeof body === 'string') {
@@ -29,9 +33,8 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'messages[] is required' });
   }
 
-  // Strip extra fields (like ts) and keep only what Groq expects
+  // Keep only what Groq expects
   const messages = incoming.map((m) => ({ role: m.role, content: m.content }));
-
   const model = body?.model || process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
 
   try {
@@ -68,4 +71,4 @@ module.exports = async function handler(req, res) {
   } catch (e) {
     return res.status(500).json({ error: e?.message || 'Server error' });
   }
-};
+}
