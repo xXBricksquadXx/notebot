@@ -1,23 +1,19 @@
 // api/chat.js (ESM)
-import { Buffer } from 'node:buffer';
-
 export default async function handler(req, res) {
-  // CORS (needed if you ever call this from CodePen)
+  // CORS (only matters if you call this cross-origin, e.g. CodePen)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') {
+  if (req.method !== 'POST')
     return res.status(405).json({ error: 'Method not allowed' });
-  }
 
   const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
+  if (!apiKey)
     return res.status(500).json({ error: 'Missing GROQ_API_KEY on server' });
-  }
 
-  // Normalize body (Vercel can give object|string|buffer-ish)
+  // Normalize body (object|string|buffer)
   let body = req.body;
   if (Buffer.isBuffer(body)) body = body.toString('utf8');
   if (typeof body === 'string') {
@@ -33,7 +29,6 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'messages[] is required' });
   }
 
-  // Keep only what Groq expects
   const messages = incoming.map((m) => ({ role: m.role, content: m.content }));
   const model = body?.model || process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
 
@@ -44,11 +39,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: 0.7,
-      }),
+      body: JSON.stringify({ model, messages, temperature: 0.7 }),
     });
 
     const data = await r.json().catch(() => null);

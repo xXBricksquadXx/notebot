@@ -1,19 +1,12 @@
 // app.js
 document.addEventListener('DOMContentLoaded', () => {
-  // If you want CodePen (or file://) to hit your deployed serverless function, set this.
+  // CodePen Serverless Function.
   const DEPLOYED_CHAT_ENDPOINT = 'https://notebot-ten.vercel.app/api/chat';
+  const IS_CODEPEN =
+    /(^|\.)codepen\.io$|(^|\.)cdpn\.io$/.test(location.hostname) ||
+    location.hostname.includes('codepen');
 
-  const isCodePen =
-    /(^|\.)codepen\.io$/i.test(location.hostname) ||
-    /(^|\.)cdpn\.io$/i.test(location.hostname) ||
-    location.hostname.toLowerCase().includes('codepen');
-
-  // If you open index.html directly (file://), treat it like "no local serverless available"
-  const isFile = location.protocol === 'file:';
-
-  // Use deployed endpoint for CodePen/file://, otherwise same-origin /api/chat
-  const API_CHAT_ENDPOINT =
-    isCodePen || isFile ? DEPLOYED_CHAT_ENDPOINT : '/api/chat';
+  const API_CHAT_ENDPOINT = IS_CODEPEN ? DEPLOYED_CHAT_ENDPOINT : '/api/chat';
 
   // ---------- State ----------
   const state = {
@@ -155,12 +148,6 @@ This is a clean demo build.
     saveStorage();
   }
 
-  function syncControls() {
-    if (els.aiModeSelect) els.aiModeSelect.value = state.settings.aiMode;
-    if (els.darkToggle)
-      els.darkToggle.checked = state.settings.theme === 'dark';
-  }
-
   // ---------- Views ----------
   function showView(view) {
     state.view = view;
@@ -181,25 +168,31 @@ This is a clean demo build.
       it.classList.toggle('text-white', active);
     });
 
-    syncControls();
+    // keep selects/toggles in sync regardless of view
+    if (els.aiModeSelect) els.aiModeSelect.value = state.settings.aiMode;
+    if (els.darkToggle)
+      els.darkToggle.checked = state.settings.theme === 'dark';
 
     if (view === 'notes') {
-      renderNotesList(els.notesSearch?.value || '');
+      renderNotesList();
       if (!state.currentNoteId && state.notes.length)
         selectNote(state.notes[0].id);
       if (!state.currentNoteId && state.notes.length === 0) createNote();
     }
     if (view === 'archived') renderArchivedList();
-    if (view === 'chatbot') renderChat();
+    if (view === 'chatbot') {
+      ensureChatToolbar();
+      renderChat({ forceScroll: true });
+    }
   }
 
   // ---------- Notes ----------
-  function createNote() {
+  function createNoteWithContent(title, content, tags = []) {
     const n = {
       id: uid(),
-      title: 'New Note',
-      content: '',
-      tags: [],
+      title: title || 'New Note',
+      content: content || '',
+      tags,
       pinned: false,
       createdAt: nowIso(),
       updatedAt: nowIso(),
@@ -209,7 +202,13 @@ This is a clean demo build.
     saveStorage();
     renderNotesList(els.notesSearch.value);
     selectNote(n.id);
+    return n;
+  }
+
+  function createNote() {
+    const n = createNoteWithContent('New Note', '', []);
     showToast('New note created', 'success');
+    return n;
   }
 
   function selectNote(id) {
@@ -316,12 +315,10 @@ This is a clean demo build.
   function togglePin() {
     const n = state.notes.find((x) => x.id === state.currentNoteId);
     if (!n) return showToast('No note selected', 'error');
-
-    const next = !n.pinned;
-    updateCurrentNote({ pinned: next });
+    updateCurrentNote({ pinned: !n.pinned });
     renderNotesList(els.notesSearch.value);
     selectNote(n.id);
-    showToast(next ? 'Pinned' : 'Unpinned', 'info');
+    showToast(n.pinned ? 'Unpinned' : 'Pinned', 'info');
   }
 
   function confirmModal(title, message, action) {
@@ -482,7 +479,54 @@ This is a clean demo build.
   }
 
   // ---------- Chat ----------
-  function renderChat() {
+  function ensureChatToolbar() {
+    // Adds "Save Chat" button next to "New Session" if missing
+    const existing = document.getElementById('chatbot-save-session-btn');
+    if (existing || !els.chatNewBtn) return;
+
+    const btn = document.createElement('button');
+    btn.id = 'chatbot-save-session-btn';
+    btn.className = 'btn-neo bg-accent text-background ml-2';
+    btn.innerHTML = `<i class="fas fa-save mr-1"></i> Save Chat`;
+    btn.addEventListener('click', saveFullChatToNote);
+
+    els.chatNewBtn.parentElement.insertBefore(btn, els.chatNewBtn.nextSibling);
+  }
+
+  function isNearBottom(el, threshold = 80) {
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+  }
+
+  function scrollToBottom() {
+    if (!els.chatHistory) return;
+    els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
+  }
+
+  function saveFullChatToNote() {
+    if (!state.chat.length) return showToast('No chat to save', 'error');
+    const transcript = state.chat
+      .map((m) => `${m.role === 'user' ? 'User' : 'AI'}:\n${m.content}`)
+      .join('\n\n');
+
+    const title = `Chat ${new Date().toLocaleString()}`;
+    createNoteWithContent(title, transcript, ['chat']);
+    showView('notes');
+    showToast('Chat saved to notes', 'success');
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast('Copied', 'success');
+    } catch {
+      showToast('Copy failed', 'error');
+    }
+  }
+
+  function renderChat({ forceScroll = false } = {}) {
+    const stick = forceScroll || isNearBottom(els.chatHistory);
+
     els.chatHistory.innerHTML = '';
     if (state.chat.length === 0) {
       els.chatHistory.innerHTML = `<p class="text-center text-muted-text py-8">Start a conversation.</p>`;
@@ -500,9 +544,36 @@ This is a clean demo build.
         m.role === 'user' ? 'bg-primary text-white' : 'bg-surface text-text'
       }`;
 
-      bubble.innerHTML = `<div class="prose prose-sm max-w-none">${marked.parse(
-        m.content
-      )}</div>`;
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'prose prose-sm max-w-none';
+      contentDiv.innerHTML = marked.parse(m.content);
+      bubble.appendChild(contentDiv);
+
+      // Actions for assistant messages
+      if (m.role === 'assistant') {
+        const actions = document.createElement('div');
+        actions.className = 'flex gap-2 justify-end mt-2';
+
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'btn-neo text-xs';
+        saveBtn.textContent = 'Save to Notes';
+        saveBtn.addEventListener('click', () => {
+          const title = `AI Reply ${new Date().toLocaleString()}`;
+          createNoteWithContent(title, m.content, ['chat', 'ai']);
+          showView('notes');
+          showToast('Reply saved to notes', 'success');
+        });
+
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'btn-neo text-xs';
+        copyBtn.textContent = 'Copy';
+        copyBtn.addEventListener('click', () => copyText(m.content));
+
+        actions.appendChild(copyBtn);
+        actions.appendChild(saveBtn);
+        bubble.appendChild(actions);
+      }
+
       row.appendChild(bubble);
       els.chatHistory.appendChild(row);
     });
@@ -510,12 +581,12 @@ This is a clean demo build.
     els.chatHistory
       .querySelectorAll('pre code')
       .forEach((b) => hljs.highlightElement(b));
-    els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
+    if (stick) scrollToBottom();
   }
 
   function startNewChat() {
     state.chat = [];
-    renderChat();
+    renderChat({ forceScroll: true });
     els.chatInput.value = '';
     autoResize(els.chatInput);
     showToast('New chat session', 'info');
@@ -528,7 +599,7 @@ This is a clean demo build.
     state.chat.push({ role: 'user', content: msg, ts: nowIso() });
     els.chatInput.value = '';
     autoResize(els.chatInput);
-    renderChat();
+    renderChat({ forceScroll: true });
 
     els.typing.classList.remove('hidden');
     try {
@@ -539,14 +610,14 @@ This is a clean demo build.
           : await callSimulatedChat(msg);
 
       state.chat.push({ role: 'assistant', content: reply, ts: nowIso() });
-      renderChat();
+      renderChat({ forceScroll: true });
     } catch (e) {
       state.chat.push({
         role: 'assistant',
         content: `Error: ${e.message}`,
         ts: nowIso(),
       });
-      renderChat();
+      renderChat({ forceScroll: true });
       showToast('Chat failed', 'error');
     } finally {
       els.typing.classList.add('hidden');
@@ -565,49 +636,27 @@ This is a clean demo build.
     return 'Simulated response: switch to Serverless mode in GitHub/Vercel to use real models.';
   }
 
-  async function readJsonOrText(res) {
-    const ct = res.headers.get('content-type') || '';
-    if (ct.includes('application/json')) {
-      return await res.json().catch(() => ({}));
-    }
-    const text = await res.text().catch(() => '');
-    return { _text: text };
-  }
-
   async function callServerlessChat(messages) {
-    // Always send only what the API needs (role/content)
+    // Always send only what the API needs (role/content) to avoid schema issues.
     const clean = (messages || []).map((m) => ({
       role: m.role,
       content: m.content,
     }));
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000);
+    const res = await fetch(API_CHAT_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: clean }),
+    });
 
-    try {
-      const res = await fetch(API_CHAT_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: clean }),
-        signal: controller.signal,
-      });
+    const data = await res.json().catch(() => ({}));
 
-      const data = await readJsonOrText(res);
-
-      if (!res.ok) {
-        const msg =
-          data?.error || data?.message || data?._text || `HTTP ${res.status}`;
-        throw new Error(msg);
-      }
-
-      if (!data || !data.content) throw new Error('Bad response');
-      return data.content;
-    } catch (e) {
-      if (e?.name === 'AbortError') throw new Error('Request timed out');
-      throw e;
-    } finally {
-      clearTimeout(timeout);
+    if (!res.ok) {
+      const msg = data.error || data.message || `HTTP ${res.status}`;
+      throw new Error(msg);
     }
+    if (!data || !data.content) throw new Error('Bad response');
+    return data.content;
   }
 
   // ---------- Events ----------
@@ -717,6 +766,7 @@ This is a clean demo build.
   // ---------- Init ----------
   loadStorage();
   applyTheme(state.settings.theme);
-  syncControls();
+  if (els.aiModeSelect) els.aiModeSelect.value = state.settings.aiMode;
+  if (els.darkToggle) els.darkToggle.checked = state.settings.theme === 'dark';
   showView('notes');
 });
